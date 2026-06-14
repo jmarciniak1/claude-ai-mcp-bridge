@@ -150,7 +150,17 @@ class AdobeBridge {
    * @returns {Promise<any>} - Command result
    */
   async send(app, command, params = {}) {
-    const ws = this.connections[app];
+    let ws = this.connections[app];
+
+    // Lazy-connect: the CEP panel may have come up after this server started
+    // (or after reconnect attempts were exhausted). Try once before simulating.
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      try {
+        ws = await this._connectToApp(app);
+      } catch {
+        ws = null;
+      }
+    }
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       // In development/simulation mode, return simulated responses

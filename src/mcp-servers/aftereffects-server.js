@@ -471,6 +471,9 @@ class AfterEffectsMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     logger.success('After Effects MCP Server running on stdio');
+    // Kick off the WebSocket connection to the CEP bridge panel (port 8082).
+    // Fire-and-forget so stdio stays responsive; send() also lazy-connects.
+    this.bridge.connect(['aftereffects']).catch(() => {});
   }
 }
 

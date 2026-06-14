@@ -6,6 +6,55 @@
 
 /* global app, CompItem, ShapeLayer, TextLayer, CameraLayer, LightLayer */
 
+// ── JSON polyfill ───────────────────────────────────────────────────────────
+// After Effects' ExtendScript engine has NO native JSON object, so every
+// JSON.parse / JSON.stringify in executeCommand() throws and the host returns
+// an empty string ("Unexpected end of JSON input" on the panel side). This
+// minimal, ES3-safe polyfill makes the whole bridge functional.
+if (typeof JSON !== "object") { JSON = {}; }
+(function () {
+  var escapable = /[\\\"\x00-\x1f]/g;
+  var meta = { "\b": "\\b", "\t": "\\t", "\n": "\\n", "\f": "\\f", "\r": "\\r", "\"": "\\\"", "\\": "\\\\" };
+  function quote(string) {
+    escapable.lastIndex = 0;
+    return "\"" + String(string).replace(escapable, function (a) {
+      var c = meta[a];
+      return typeof c === "string" ? c : "\\u" + ("0000" + a.charCodeAt(0).toString(16)).slice(-4);
+    }) + "\"";
+  }
+  function str(value) {
+    var i, k, v, length, partial;
+    switch (typeof value) {
+      case "string":  return quote(value);
+      case "number":  return isFinite(value) ? String(value) : "null";
+      case "boolean": return String(value);
+      case "object":
+        if (!value) return "null";
+        partial = [];
+        if (Object.prototype.toString.apply(value) === "[object Array]") {
+          length = value.length;
+          for (i = 0; i < length; i += 1) partial[i] = str(value[i]) || "null";
+          return "[" + partial.join(",") + "]";
+        }
+        for (k in value) {
+          if (Object.prototype.hasOwnProperty.call(value, k)) {
+            v = str(value[k]);
+            if (v) partial.push(quote(k) + ":" + v);
+          }
+        }
+        return "{" + partial.join(",") + "}";
+    }
+    return undefined; // undefined / function
+  }
+  if (typeof JSON.stringify !== "function") {
+    JSON.stringify = function (value) { return str(value); };
+  }
+  if (typeof JSON.parse !== "function") {
+    // Input originates from our own MCP server, so an eval-based parse is safe here.
+    JSON.parse = function (text) { return eval("(" + String(text) + ")"); };
+  }
+}());
+
 var AEBridge = {
 
   // ── PROJECT ────────────────────────────────────────────────────
